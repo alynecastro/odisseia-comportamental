@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Odisséia Comportamental</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* bg-slate-900 */
+            color: #e2e8f0; /* text-slate-200 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        canvas {
+            background-color: #020617; /* bg-slate-950 */
+            border: 2px solid #334155; /* border-slate-700 */
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); /* shadow-lg */
+            display: block;
+            margin: 0 auto;
+        }
+        .btn {
+            @apply px-4 py-2 rounded-lg font-semibold transition-all duration-200;
+        }
+        .btn-primary {
+            @apply bg-blue-600 hover:bg-blue-700 text-white shadow-md;
+        }
+        .btn-secondary {
+            @apply bg-slate-700 hover:bg-slate-600 text-white shadow-md;
+        }
+        .btn-restart {
+            @apply bg-green-600 hover:bg-green-700 text-white shadow-md;
+        }
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #1e293b; /* bg-slate-800 */
+            padding: 2rem;
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.08);
+            color: #e2e8f0;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto p-4 flex flex-col items-center max-w-4xl">
+        <h1 class="text-4xl font-bold mb-6 text-white text-center">Odisséia Comportamental</h1>
+
+        <div class="bg-slate-800 p-6 rounded-xl shadow-lg w-full mb-6">
+            <div class="flex flex-wrap justify-between items-center mb-4 text-lg font-semibold">
+                <div class="flex items-center space-x-2">
+                    <span class="text-blue-400">⛽ Combustível:</span> <span id="fuelDisplay" class="text-white">100</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-red-400">❤️ Integridade:</span> <span id="healthDisplay" class="text-white">100</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-green-400">🧑‍🚀 Tripulação:</span> <span id="crewDisplay" class="text-white">5</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-yellow-400">🎯 Missão:</span> <span id="missionDisplay" class="text-white">1/5</span>
+                </div>
+            </div>
+            <p id="messageDisplay" class="text-center text-xl text-slate-300 min-h-[4rem] flex items-center justify-center"></p>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="450" class="mb-6"></canvas>
+
+        <div id="decisionPanel" class="bg-slate-800 p-6 rounded-xl shadow-lg w-full hidden">
+            <h2 id="eventTitle" class="text-2xl font-bold mb-4 text-white">Evento!</h2>
+            <p id="eventDescription" class="text-slate-300 mb-6"></p>
+            <div id="optionsContainer" class="flex flex-col sm:flex-row gap-4">
+                <button id="option1Btn" class="btn btn-primary flex-1"></button>
+                <button id="option2Btn" class="btn btn-primary flex-1"></button>
+            </div>
+        </div>
+
+        <button id="startGameBtn" class="btn btn-restart text-2xl px-8 py-4">Iniciar Odisséia</button>
+    </div>
+
+    <!-- Modal para o Relatório de Perfil -->
+    <div id="profileReportModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl font-bold mb-4 text-center text-blue-400">Relatório de Perfil Comportamental</h2>
+            <p class="text-lg mb-4 text-slate-300">Sua jornada pela Odisséia Comportamental nos permitiu observar suas tendências. Veja o que notamos:</p>
+            <div class="space-y-3 mb-6">
+                <p><strong class="text-white">Tendência a Riscos:</strong> <span id="riskProfile" class="text-blue-300"></span></p>
+                <p><strong class="text-white">Estilo de Decisão:</strong> <span id="decisionProfile" class="text-blue-300"></span></p>
+                <p><strong class="text-white">Abordagem de Recursos:</strong> <span id="resourceProfile" class="text-blue-300"></span></p>
+                <p><strong class="text-white">Reação a Adversidades:</strong> <span id="adversityProfile" class="text-blue-300"></span></p>
+            </div>
+            <p class="text-sm text-slate-400 italic text-center">Lembre-se: Este é um jogo. Os resultados são indicativos e baseados em suas escolhas dentro deste cenário simulado.</p>
+            <div class="flex justify-center mt-6">
+                <button id="restartGameBtnModal" class="btn btn-restart">Reiniciar Jogo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis globais do jogo
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const fuelDisplay = document.getElementById('fuelDisplay');
+        const healthDisplay = document.getElementById('healthDisplay');
+        const crewDisplay = document.getElementById('crewDisplay');
+        const missionDisplay = document.getElementById('missionDisplay');
+        const messageDisplay = document.getElementById('messageDisplay');
+        const decisionPanel = document.getElementById('decisionPanel');
+        const eventTitle = document.getElementById('eventTitle');
+        const eventDescription = document.getElementById('eventDescription');
+        const option1Btn = document.getElementById('option1Btn');
+        const option2Btn = document.getElementById('option2Btn');
+        const startGameBtn = document.getElementById('startGameBtn');
+        const profileReportModal = document.getElementById('profileReportModal');
+        const restartGameBtnModal = document.getElementById('restartGameBtnModal');
+
+        let gameRunning = false;
+        let game = {
+            fuel: 100,
+            health: 100,
+            crew: 5,
+            currentMission: 1,
+            maxMissions: 5,
+            eventsCompleted: 0,
+            playerShip: { x: canvas.width / 2, y: canvas.height / 2, size: 20 }
+        };
+
+        // Arrays para registrar o comportamento do jogador
+        const behavioralLog = []; // { eventId, decision, timeTaken, initialFuel, initialHealth, initialCrew, outcome }
+        let currentEventStartTime = 0;
+
+        // --- Funções de Desenho no Canvas ---
+        function drawShip() {
+            ctx.fillStyle = '#67e8f9'; // cian-300
+            ctx.beginPath();
+            ctx.moveTo(game.playerShip.x, game.playerShip.y - game.playerShip.size);
+            ctx.lineTo(game.playerShip.x + game.playerShip.size, game.playerShip.y + game.playerShip.size / 2);
+            ctx.lineTo(game.playerShip.x - game.playerShip.size, game.playerShip.y + game.playerShip.size / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#0891b2'; // cian-700
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function drawBackground() {
+            ctx.fillStyle = '#020617'; // bg-slate-950
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Desenhar estrelas aleatórias
+            for (let i = 0; i < 100; i++) {
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + Math.random() + ')';
+                ctx.beginPath();
+                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function updateCanvas() {
+            drawBackground();
+            drawShip();
+        }
+
+        // --- Funções de Jogo ---
+        function updateUI() {
+            fuelDisplay.textContent = game.fuel;
+            healthDisplay.textContent = game.health;
+            crewDisplay.textContent = game.crew;
+            missionDisplay.textContent = `${game.currentMission}/${game.maxMissions}`;
+        }
+
+        function showMessage(msg, color = 'text-slate-300') {
+            messageDisplay.textContent = msg;
+            messageDisplay.className = `text-center text-xl min-h-[4rem] flex items-center justify-center ${color}`;
+        }
+
+        function endGame(status) {
+            gameRunning = false;
+            decisionPanel.classList.add('hidden');
+            startGameBtn.classList.remove('hidden');
+            startGameBtn.textContent = 'Reiniciar Jogo';
+
+            if (status === 'win') {
+                showMessage('Missão Concluída! Você sobreviveu à Odisséia!', 'text-green-400');
+            } else {
+                showMessage('Sua nave foi destruída ou a tripulação perdida! Fim de Jogo.', 'text-red-400');
+            }
+            analyzeBehavior();
+        }
+
+        function checkGameEndConditions() {
+            if (game.fuel <= 0 || game.health <= 0 || game.crew <= 0) {
+                endGame('lose');
+                return true;
+            }
+            if (game.currentMission > game.maxMissions) {
+                endGame('win');
+                return true;
+            }
+            return false;
+        }
+
+        // --- Eventos e Decisões ---
+        const events = [
+            {
+                id: 'meteor_shower',
+                title: 'Chuva de Meteoros!',
+                description: 'Uma inesperada chuva de meteoros se aproxima. O que você faz?',
+                options: [
+                    {
+                        text: 'Manobrar para desviar (Consome Combustível)',
+                        action: () => {
+                            game.fuel = Math.max(0, game.fuel - 20);
+                            showMessage('Você manobrou com sucesso, mas gastou combustível.');
+                            return 'manobrar_desviar';
+                        },
+                        outcome: { fuel: -20, health: 0, crew: 0 }
+                    },
+                    {
+                        text: 'Ativar escudos (Consome Integridade da Nave)',
+                        action: () => {
+                            game.health = Math.max(0, game.health - 15);
+                            showMessage('Os escudos protegeram a nave, mas sofreram danos.');
+                            return 'ativar_escudos';
+                        },
+                        outcome: { fuel: 0, health: -15, crew: 0 }
+                    }
+                ]
+            },
+            {
+                id: 'distress_signal',
+                title: 'Sinal de Socorro!',
+                description: 'Você intercepta um sinal de socorro de uma nave danificada. Eles pedem ajuda.',
+                options: [
+                    {
+                        text: 'Prestar socorro (Demora e consome recursos)',
+                        action: () => {
+                            game.fuel = Math.max(0, game.fuel - 25);
+                            game.crew = Math.max(0, game.crew - 1); // Risco de perda de tripulação
+                            showMessage('Você ajudou, mas sua jornada foi mais lenta e perdeu um tripulante.');
+                            return 'prestar_socorro';
+                        },
+                        outcome: { fuel: -25, health: 0, crew: -1 }
+                    },
+                    {
+                        text: 'Ignorar e seguir (Economiza recursos)',
+                        action: () => {
+                            showMessage('Você ignorou o sinal e continuou sua rota.');
+                            return 'ignorar_sinal';
+                        },
+                        outcome: { fuel: 0, health: 0, crew: 0 }
+                    }
+                ]
+            },
+            {
+                id: 'resource_planet',
+                title: 'Planeta Rico em Recursos!',
+                description: 'Você encontrou um planeta com recursos valiosos. Vale a pena desviar?',
+                options: [
+                    {
+                        text: 'Explorar o planeta (Ganho de combustível, risco de dano)',
+                        action: () => {
+                            game.fuel += 30;
+                            if (Math.random() < 0.3) { // 30% de chance de dano
+                                game.health = Math.max(0, game.health - 10);
+                                showMessage('Você coletou combustível, mas a exploração causou pequenos danos.');
+                                return 'explorar_com_dano';
+                            } else {
+                                showMessage('Exploração bem-sucedida! Combustível extra.');
+                                return 'explorar_sem_dano';
+                            }
+                        },
+                        outcome: { fuel: +30, health: 'random_risk', crew: 0 }
+                    },
+                    {
+                        text: 'Seguir em frente (Sem ganho, sem risco)',
+                        action: () => {
+                            showMessage('Você seguiu seu curso principal, sem desvios.');
+                            return 'seguir_em_frente';
+                        },
+                        outcome: { fuel: 0, health: 0, crew: 0 }
+                    }
+                ]
+            },
+            {
+                id: 'equipment_failure',
+                title: 'Falha no Equipamento!',
+                description: 'Um sistema crítico da nave falhou. Requer atenção imediata.',
+                options: [
+                    {
+                        text: 'Reparar com peças de reposição (Gasta recursos, 100% sucesso)',
+                        action: () => {
+                            game.health += 20; // Recupera integridade
+                            game.fuel = Math.max(0, game.fuel - 10); // Gasta combustível para peças
+                            showMessage('Reparo bem-sucedido! A nave está mais íntegra.');
+                            return 'reparar_pecas';
+                        },
+                        outcome: { fuel: -10, health: +20, crew: 0 }
+                    },
+                    {
+                        text: 'Improvisar um reparo (Risco de falha, não gasta recursos)',
+                        action: () => {
+                            if (Math.random() < 0.6) { // 60% de chance de sucesso
+                                game.health += 10;
+                                showMessage('O reparo improvisado funcionou, a nave está funcional.');
+                                return 'improvisar_sucesso';
+                            } else {
+                                game.health = Math.max(0, game.health - 25);
+                                game.crew = Math.max(0, game.crew - 1);
+                                showMessage('O reparo improvisado falhou! Grandes danos e perda de um tripulante.');
+                                return 'improvisar_falha';
+                            }
+                        },
+                        outcome: { fuel: 0, health: 'random_risk_crew_loss', crew: 'random_risk_loss' }
+                    }
+                ]
+            },
+             {
+                id: 'crew_morale',
+                title: 'Moral da Tripulação Baixa',
+                description: 'A tripulação está exausta e a moral está baixa, afetando o desempenho. O que fazer?',
+                options: [
+                    {
+                        text: 'Dar um dia de folga (Consome combustível para suporte vital extra)',
+                        action: () => {
+                            game.fuel = Math.max(0, game.fuel - 15);
+                            showMessage('A moral da tripulação melhorou, mas você gastou mais combustível.');
+                            return 'dar_folga';
+                        },
+                        outcome: { fuel: -15, health: 0, crew: 0 }
+                    },
+                    {
+                        text: 'Exigir que continuem trabalhando (Risco de insubordinação ou queda de desempenho)',
+                        action: () => {
+                            if (Math.random() < 0.4) { // 40% de chance de queda de desempenho
+                                game.health = Math.max(0, game.health - 5); // Pequeno dano por stress
+                                showMessage('A tripulação continua, mas o desempenho está marginalmente pior.');
+                                return 'exigir_continuar_baixa_eficiencia';
+                            } else {
+                                showMessage('A tripulação continua, a contragosto, mas sem perdas imediatas.');
+                                return 'exigir_continuar_sem_consequencia';
+                            }
+                        },
+                        outcome: { fuel: 0, health: 'random_risk', crew: 0 }
+                    }
+                ]
+            }
+        ];
+
+        let currentEvent = null;
+
+        function showEvent(event) {
+            currentEvent = event;
+            eventTitle.textContent = event.title;
+            eventDescription.textContent = event.description;
+            option1Btn.textContent = event.options[0].text;
+            option2Btn.textContent = event.options[1].text;
+            decisionPanel.classList.remove('hidden');
+            showMessage('Uma nova situação exige sua atenção!');
+            currentEventStartTime = performance.now(); // Marca o início da decisão
+        }
+
+        function handleDecision(optionIndex) {
+            const timeTaken = performance.now() - currentEventStartTime;
+            const chosenOption = currentEvent.options[optionIndex];
+
+            // Registrar o estado inicial antes da decisão
+            const initialFuel = game.fuel;
+            const initialHealth = game.health;
+            const initialCrew = game.crew;
+
+            const outcome = chosenOption.action(); // Aplica a ação da opção
+            
+            // Log the decision for behavioral analysis
+            behavioralLog.push({
+                eventId: currentEvent.id,
+                decision: chosenOption.text,
+                timeTaken: timeTaken,
+                initialFuel: initialFuel,
+                initialHealth: initialHealth,
+                initialCrew: initialCrew,
+                outcomeApplied: outcome, // The return value from the action function
+                finalFuel: game.fuel,
+                finalHealth: game.health,
+                finalCrew: game.crew
+            });
+
+            decisionPanel.classList.add('hidden');
+            game.currentMission++;
+            game.eventsCompleted++;
+            updateUI();
+
+            if (!checkGameEndConditions()) {
+                // Aguarda um pouco antes do próximo evento ou fim do jogo
+                setTimeout(() => {
+                    if (gameRunning) {
+                        triggerRandomEvent();
+                    }
+                }, 2000);
+            }
+        }
+
+        function triggerRandomEvent() {
+            if (game.currentMission > game.maxMissions) {
+                return; // Já terminou
+            }
+            const randomIndex = Math.floor(Math.random() * events.length);
+            showEvent(events[randomIndex]);
+        }
+
+        // --- Análise Comportamental ---
+        function analyzeBehavior() {
+            let totalTime = 0;
+            let riskyDecisions = 0;
+            let cautiousDecisions = 0;
+            let resourceConservation = 0; // Number of times opted for less resource intense option
+            let resourceExpenditure = 0; // Number of times opted for more resource intense option
+            let problemSolvingAttempts = 0;
+            let adaptabilityScore = 0; // How well they recover from negative outcomes
+
+            // Simple rules for behavioral interpretation
+            const traitDefinitions = {
+                riskAverse: 0, // More cautious
+                riskTaker: 0,  // More risky
+                quickDecider: 0, // Fast decisions
+                deliberateDecider: 0, // Slow decisions
+                resourceOptimizer: 0, // Balances resources well
+                resourceSpender: 0, // Tends to spend resources
+                proactiveProblemSolver: 0, // Addresses issues directly
+                reactiveProblemSolver: 0, // Avoids issues or reacts later
+                empathetic: 0, // Considers crew/others
+                goalOriented: 0 // Focuses on mission completion/self-preservation
+            };
+
+            behavioralLog.forEach(log => {
+                totalTime += log.timeTaken;
+
+                // Decision Speed
+                if (log.timeTaken < 5000) { // < 5 seconds
+                    traitDefinitions.quickDecider++;
+                } else {
+                    traitDefinitions.deliberateDecider++;
+                }
+
+                // Risk & Resource Management
+                switch (log.eventId) {
+                    case 'meteor_shower':
+                        if (log.decision.includes('Manobrar')) { // Risky but resource-costly
+                            riskyDecisions++;
+                            resourceExpenditure++;
+                        } else if (log.decision.includes('Ativar escudos')) { // Cautious but health-costly
+                            cautiousDecisions++;
+                            resourceExpenditure++;
+                        }
+                        break;
+                    case 'distress_signal':
+                        if (log.decision.includes('Prestar socorro')) { // Empathetic, but risky (crew loss)
+                            riskyDecisions++;
+                            traitDefinitions.empathetic++;
+                            resourceExpenditure++;
+                        } else if (log.decision.includes('Ignorar')) { // Self-preservation, resource conservation
+                            cautiousDecisions++;
+                            traitDefinitions.goalOriented++;
+                            resourceConservation++;
+                        }
+                        break;
+                    case 'resource_planet':
+                        if (log.decision.includes('Explorar')) { // Risky (potential damage) for gain
+                            riskyDecisions++;
+                            resourceExpenditure++; // For time/risk
+                        } else if (log.decision.includes('Seguir')) { // Cautious, no gain/loss
+                            cautiousDecisions++;
+                            resourceConservation++;
+                        }
+                        break;
+                    case 'equipment_failure':
+                        problemSolvingAttempts++;
+                        if (log.decision.includes('Reparar com peças')) { // Cautious, sure outcome, resource-costly
+                            cautiousDecisions++;
+                            resourceExpenditure++;
+                            traitDefinitions.proactiveProblemSolver++;
+                        } else if (log.decision.includes('Improvisar')) { // Risky, low cost, uncertain outcome
+                            riskyDecisions++;
+                            resourceConservation++;
+                            traitDefinitions.reactiveProblemSolver++; // Or adaptable, depending on outcome
+                        }
+                        // Adaptability check: if improvisation failed, what happened next? (more complex to track here)
+                        if (log.outcomeApplied === 'improvisar_falha') {
+                           // If they survived subsequent events, adaptability is high.
+                           // For simplicity, we'll mark this as a negative outcome affecting adaptability score
+                           adaptabilityScore -= 1;
+                        } else if (log.outcomeApplied === 'improvisar_sucesso') {
+                            adaptabilityScore += 1;
+                        }
+                        break;
+                    case 'crew_morale':
+                         if (log.decision.includes('Dar um dia de folga')) { // Empathetic, resource-costly
+                            traitDefinitions.empathetic++;
+                            resourceExpenditure++;
+                        } else if (log.decision.includes('Exigir que continuem trabalhando')) { // Goal-oriented, less empathetic, less resource-costly, risky
+                            traitDefinitions.goalOriented++;
+                            resourceConservation++;
+                            riskyDecisions++;
+                        }
+                        break;
+                }
+            });
+
+            // --- Gerar o Perfil ---
+            const riskProfileText = (riskyDecisions > cautiousDecisions) ? "Aventureiro(a) e propenso(a) a correr riscos, buscando ganhos mesmo com incertezas." : "Cauteloso(a) e avesso(a) a riscos, prefere evitar perdas e manter a segurança.";
+            const decisionProfileText = (traitDefinitions.quickDecider > traitDefinitions.deliberateDecider) ? "Decisivo(a) e rápido(a) na tomada de decisões, mesmo sob pressão." : "Deliberado(a) e analítico(a) nas decisões, preferindo considerar todas as opções.";
+            const resourceProfileText = (resourceExpenditure > resourceConservation) ? "Propenso(a) a investir recursos para garantir o sucesso ou mitigar riscos." : "Conservador(a) com recursos, buscando otimizar o uso e evitar desperdícios.";
+
+            let adversityText = "Sua abordagem para adversidades é equilibrada.";
+            if (traitDefinitions.proactiveProblemSolver > traitDefinitions.reactiveProblemSolver) {
+                 adversityText = "Você tende a ser proativo(a) na resolução de problemas, buscando soluções diretas e confiáveis.";
+            } else if (traitDefinitions.reactiveProblemSolver > traitDefinitions.proactiveProblemSolver) {
+                adversityText = "Você demonstra uma abordagem mais reativa ou adaptativa a problemas, com disposição para improvisar.";
+            }
+
+
+            // Display the results in the modal
+            document.getElementById('riskProfile').textContent = riskProfileText;
+            document.getElementById('decisionProfile').textContent = decisionProfileText;
+            document.getElementById('resourceProfile').textContent = resourceProfileText;
+            document.getElementById('adversityProfile').textContent = adversityText;
+
+            profileReportModal.classList.remove('hidden');
+        }
+
+        // --- Inicialização do Jogo ---
+        function resetGame() {
+            game = {
+                fuel: 100,
+                health: 100,
+                crew: 5,
+                currentMission: 1,
+                maxMissions: 5,
+                eventsCompleted: 0,
+                playerShip: { x: canvas.width / 2, y: canvas.height / 2, size: 20 }
+            };
+            behavioralLog.length = 0; // Limpa o log de comportamento
+            updateUI();
+            updateCanvas();
+            showMessage('Bem-vindo(a) à Odisséia Comportamental! Clique para iniciar.');
+            decisionPanel.classList.add('hidden');
+            startGameBtn.classList.remove('hidden');
+            profileReportModal.classList.add('hidden');
+        }
+
+        function startGame() {
+            resetGame();
+            gameRunning = true;
+            startGameBtn.classList.add('hidden');
+            showMessage('Iniciando missão... Prepare-se para decisões!');
+            setTimeout(triggerRandomEvent, 2000); // Inicia o primeiro evento após um pequeno delay
+        }
+
+        // --- Event Listeners ---
+        startGameBtn.addEventListener('click', startGame);
+        option1Btn.addEventListener('click', () => handleDecision(0));
+        option2Btn.addEventListener('click', () => handleDecision(1));
+        restartGameBtnModal.addEventListener('click', resetGame);
+
+        // Ajustar o canvas ao redimensionar a janela (garantindo responsividade)
+        function resizeCanvas() {
+            const containerWidth = canvas.parentElement.offsetWidth - 32; // Subtracting padding
+            canvas.width = Math.min(800, containerWidth);
+            canvas.height = canvas.width * (450 / 800); // Manter proporção 16:9
+            game.playerShip.x = canvas.width / 2;
+            game.playerShip.y = canvas.height / 2;
+            updateCanvas();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.onload = function () {
+            resizeCanvas(); // Chama no carregamento inicial
+            resetGame(); // Prepara o jogo
+        };
+    </script>
+</body>
+</html>
